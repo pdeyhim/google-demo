@@ -1,6 +1,7 @@
 from airflow.contrib.hooks.bigquery_hook import BigQueryHook
 from airflow.contrib.hooks.gcp_pubsub_hook import PubSubHook
 from airflow.operators.python_operator import PythonOperator
+from airflow.models import Variable
 from airflow import DAG
 
 from datetime import datetime, timedelta
@@ -22,17 +23,21 @@ dag = DAG('bq_publish_to_pubsub',
           catchup=True,
           schedule_interval='*/5 * * * *')
 
-gcp_project = "deyhim-sandbox"
-pubsub_topic = "splunk"
-detection_query = '''
-SELECT * 
-    FROM 
-         realtime_agg.random_data_raw
-    WHERE 
-        ts > TIMESTAMP "{{ prev_execution_date.strftime("%Y-%m-%d %H:%M:%S") }}" 
-    AND 
-        ts <= TIMESTAMP "{{ execution_date.strftime("%Y-%m-%d %H:%M:%S") }}" 
-'''
+##gcp_project = "deyhim-sandbox"
+##pubsub_topic = "splunk"
+##detection_query = '''
+##SELECT *
+##    FROM
+##         realtime_agg.random_data_raw
+##    WHERE
+##        ts > TIMESTAMP "{{ prev_execution_date.strftime("%Y-%m-%d %H:%M:%S") }}"
+##    AND
+##        ts <= TIMESTAMP "{{ execution_date.strftime("%Y-%m-%d %H:%M:%S") }}"
+##'''
+
+detection_query = Variable.get("detection_query")
+gcp_project = Variable.get("detection_logs_project")
+pubsub_topic = Variable.get("detection_pubsub_topic")
 
 
 def chunks(l, n):
