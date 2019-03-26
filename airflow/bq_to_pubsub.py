@@ -51,7 +51,7 @@ def big_query_executor(**kwargs):
 
     query = kwargs['templates_dict']['query']
     logging.info(query)
-    bigquery_hook = BigQueryHook(use_legacy_sql=False)
+    bigquery_hook = BigQueryHook()
     df = bigquery_hook.get_pandas_df(sql=query)
     kwargs['ti'].xcom_push(key='iam_custom_detector', value=df)
 
