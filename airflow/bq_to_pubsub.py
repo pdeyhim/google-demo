@@ -7,6 +7,8 @@ from airflow import DAG
 from datetime import datetime, timedelta
 from base64 import b64encode as b64e
 
+import pandas as pd
+
 import logging
 
 default_args = {
@@ -52,14 +54,15 @@ def big_query_executor(**kwargs):
     query = kwargs['templates_dict']['query']
     logging.info(query)
     bigquery_hook = BigQueryHook(use_legacy_sql=False)
-    df = bigquery_hook.get_pandas_df(sql=query)
-    kwargs['ti'].xcom_push(key='iam_custom_detector', value=df)
+    df_dict = bigquery_hook.get_pandas_df(sql=query).to_dict()
+    kwargs['ti'].xcom_push(key='iam_custom_detector', value=df_dict)
 
 
 def publish_to_pubsub(**kwargs):
     """Submits the records to PubSub in batches of 1000 records"""
 
-    df = kwargs['ti'].xcom_pull(key=None, task_ids='run_detector_sql')
+    df_dict = kwargs['ti'].xcom_pull(key=None, task_ids='run_detector_sql')
+    df = pd.DataFrame.from_dict(df_dict)
     messages = [{'data': b64e(row.to_json().encode()).decode()} for index, row in df.iterrows()]
 
     """splitting the array to 1000 size chunks (PubSub limit)"""
