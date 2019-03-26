@@ -20,7 +20,7 @@ default_args = {
     'provide_context': True
 }
 
-dag = DAG('bq_publish_to_pubsub',
+dag = DAG('bq_publish_to_pubsub_dev',
           default_args=default_args,
           catchup=True,
           schedule_interval='*/5 * * * *')
@@ -30,6 +30,7 @@ dag = DAG('bq_publish_to_pubsub',
 ##detection_query = '''
 ##SELECT *
 ##    FROM
+##         realtime_agg.random_data_raw
 ##         realtime_agg.random_data_raw
 ##    WHERE
 ##        ts > TIMESTAMP "{{ prev_execution_date.strftime("%Y-%m-%d %H:%M:%S") }}"
@@ -48,15 +49,22 @@ def chunks(l, n):
         yield l[i:i + n]
 
 
-def big_query_executor(**kwargs):
+def bq_to_pubsub_query_executor(**kwargs):
     """Executes a custom detector query in BigQuery and passes the results to the next task"""
 
     query = kwargs['templates_dict']['query']
     logging.info(query)
     bigquery_hook = BigQueryHook(use_legacy_sql=False)
-    df_dict = bigquery_hook.get_pandas_df(sql=query).to_dict()
-    kwargs['ti'].xcom_push(key='iam_custom_detector', value=df_dict)
+    df = bigquery_hook.get_pandas_df(sql=query)
+    ##kwargs['ti'].xcom_push(key='iam_custom_detector', value=df_dict)
 
+    messages = [{'data': b64e(row.to_json().encode()).decode()} for index, row in df.iterrows()]
+
+    """splitting the array to 1000 size chunks (PubSub limit)"""
+    messages_chunks = chunks(messages, 1000)
+    pubsub_hoook = PubSubHook()
+    for chunk in messages_chunks:
+        pubsub_hoook.publish(project=gcp_project, topic=pubsub_topic, messages=chunk)
 
 def publish_to_pubsub(**kwargs):
     """Submits the records to PubSub in batches of 1000 records"""
@@ -72,9 +80,9 @@ def publish_to_pubsub(**kwargs):
         pubsub_hoook.publish(project=gcp_project, topic=pubsub_topic, messages=chunk)
 
 
-t1 = PythonOperator(task_id="run_detector_sql", python_callable=big_query_executor,
+t1 = PythonOperator(task_id="bq_to_pubsub_query_executor", python_callable=bq_to_pubsub_query_executor,
                     templates_dict={'query': detection_query}, dag=dag)
 
-t2 = PythonOperator(task_id="publish_to_pubsub", python_callable=publish_to_pubsub, dag=dag)
+##t2 = PythonOperator(task_id="publish_to_pubsub", python_callable=publish_to_pubsub, dag=dag)
 
-t1 >> t2
+t1
