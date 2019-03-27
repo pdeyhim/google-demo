@@ -14,7 +14,7 @@ import logging
 default_args = {
     'owner': 'airflow',
     'depends_on_past': True,
-    'start_date': datetime.now(),
+    'start_date': datetime(2019, 3, 27),
     'retries': 2,
     'retry_delay': timedelta(minutes=1),
     'provide_context': True
@@ -42,7 +42,6 @@ detection_query = Variable.get("detection_query")
 gcp_project = Variable.get("detection_logs_project")
 pubsub_topic = Variable.get("detection_pubsub_topic")
 
-
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
     for i in range(0, len(l), n):
@@ -56,21 +55,7 @@ def bq_to_pubsub_query_executor(**kwargs):
     logging.info(query)
     bigquery_hook = BigQueryHook(use_legacy_sql=False)
     df = bigquery_hook.get_pandas_df(sql=query)
-    ##kwargs['ti'].xcom_push(key='iam_custom_detector', value=df_dict)
 
-    messages = [{'data': b64e(row.to_json().encode()).decode()} for index, row in df.iterrows()]
-
-    """splitting the array to 1000 size chunks (PubSub limit)"""
-    messages_chunks = chunks(messages, 1000)
-    pubsub_hoook = PubSubHook()
-    for chunk in messages_chunks:
-        pubsub_hoook.publish(project=gcp_project, topic=pubsub_topic, messages=chunk)
-
-def publish_to_pubsub(**kwargs):
-    """Submits the records to PubSub in batches of 1000 records"""
-
-    df_dict = kwargs['ti'].xcom_pull(key=None, task_ids='run_detector_sql')
-    df = pd.DataFrame.from_dict(df_dict)
     messages = [{'data': b64e(row.to_json().encode()).decode()} for index, row in df.iterrows()]
 
     """splitting the array to 1000 size chunks (PubSub limit)"""
@@ -83,6 +68,5 @@ def publish_to_pubsub(**kwargs):
 t1 = PythonOperator(task_id="bq_to_pubsub_query_executor", python_callable=bq_to_pubsub_query_executor,
                     templates_dict={'query': detection_query}, dag=dag)
 
-##t2 = PythonOperator(task_id="publish_to_pubsub", python_callable=publish_to_pubsub, dag=dag)
 
 t1
