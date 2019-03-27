@@ -25,18 +25,6 @@ dag = DAG('bq_publish_to_pubsub_dev',
           catchup=True,
           schedule_interval='*/5 * * * *')
 
-##gcp_project = "deyhim-sandbox"
-##pubsub_topic = "splunk"
-##detection_query = '''
-##SELECT *
-##    FROM
-##         realtime_agg.random_data_raw
-##         realtime_agg.random_data_raw
-##    WHERE
-##        ts > TIMESTAMP "{{ prev_execution_date.strftime("%Y-%m-%d %H:%M:%S") }}"
-##    AND
-##        ts <= TIMESTAMP "{{ execution_date.strftime("%Y-%m-%d %H:%M:%S") }}"
-##'''
 
 detection_query = Variable.get("detection_query")
 gcp_project = Variable.get("detection_logs_project")
